@@ -1,4 +1,7 @@
-# Push a tag v<version> (same as package.json) → installers for macOS, Windows and Linux on the GitHub release.
+# Push a tag v<version> (same as package.json) → installers for macOS, Windows and Linux.
+# Each system builds, then runs the packaged app's smoke test (both sites load in the app, Google sign-in hands off
+# to the system browser and comes back). Files go to a draft release; it is published as "latest" (what the
+# download page links to) only when every system passed.
 name: release
 on:
   push:
@@ -6,21 +9,32 @@ on:
 permissions:
   contents: write
 jobs:
-  release:
+  draft:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Create the release (the builds upload into it)
-        run: gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "AI Architectures ${GITHUB_REF_NAME#v}" --notes-file RELEASE_NOTES.md
+      - name: Draft release
+        run: gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --draft --title "AI Architectures ${GITHUB_REF_NAME#v}" --notes-file RELEASE_NOTES.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   build:
-    needs: release
+    needs: draft
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        include:
+          - os: ubuntu-latest
+            app: dist/linux-unpacked/ai-architectures
+            run: xvfb-run -a
+            flags: --no-sandbox
+          - os: windows-latest
+            app: dist/win-unpacked/AI Architectures.exe
+          - os: macos-latest
+            app: dist/mac-universal/AI Architectures.app/Contents/MacOS/AI Architectures
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,8 +42,28 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Build and upload
-        run: npx electron-builder --publish always
+      - name: Build
+        run: npx electron-builder --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Smoke test the packaged app
+        run: |
+          ${{ matrix.run }} "${{ matrix.app }}" ${{ matrix.flags }} "--smoke-test=$PWD/smoke.json" || true
+          cat smoke.json
+          node -e "process.exit(JSON.parse(require('fs').readFileSync('smoke.json','utf8')).ok ? 0 : 1)"
+        timeout-minutes: 5
+      - name: Upload to the draft release
+        run: |
+          shopt -s nullglob
+          files=(dist/*.exe dist/*.dmg dist/*.zip dist/*.AppImage dist/*.deb dist/*.blockmap dist/latest*.yml)
+          gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish as latest
+        run: gh release edit "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --draft=false --latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
