@@ -1,0 +1,111 @@
+{
+  "name": "ai-architectures-desktop",
+  "productName": "AI Architectures",
+  "version": "1.0.0",
+  "description": "AI Architectures for desktop: the CAD studio (plans.ai-architectures.com) and quick renders (ai-architectures.com) in their own window.",
+  "author": {
+    "name": "20Vision GmbH",
+    "email": "business@20.vision"
+  },
+  "homepage": "https://plans.ai-architectures.com/download",
+  "license": "UNLICENSED",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:linux": "electron-builder --linux",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac"
+  },
+  "devDependencies": {
+    "electron": "44.4.5",
+    "electron-builder": "26.16.1"
+  },
+  "build": {
+    "appId": "com.twentyvision.aiarchitectures",
+    "productName": "AI Architectures",
+    "copyright": "\u00a9 20Vision GmbH",
+    "artifactName": "AI-Architectures-${os}-${arch}.${ext}",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "20vision",
+        "repo": "ai-architectures-desktop",
+        "releaseType": "release"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.graphics-design",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "title": "AI Architectures"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "shortcutName": "AI Architectures",
+      "artifactName": "AI-Architectures-Setup-${arch}.${ext}"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "category": "Graphics",
+      "maintainer": "20Vision GmbH <business@20.vision>",
+      "synopsis": "AI floor plans in CAD and photoreal renders",
+      "executableName": "ai-architectures",
+      "syncDesktopName": true
+    }
+  },
+  "desktopName": "ai-architectures.desktop"
+}

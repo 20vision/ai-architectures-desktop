@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>AI Architectures · offline</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #0f141b; color: #f1f5f9;
+         font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif; padding: 24px; text-align: center; }
+  h1 { font-size: 22px; margin: 0 0 6px; } p { color: #94a3b8; margin: 0 0 20px; }
+  button { background: #2563eb; color: #fff; border: 0; border-radius: 10px; padding: 10px 18px; font: inherit; font-weight: 600; cursor: pointer; }
+  button:hover { background: #1d4ed8; }
+</style>
+</head>
+<body>
+<div>
+  <h1>Can’t reach AI Architectures</h1>
+  <p>Check your internet connection. Your projects are saved online and will be there when you’re back.</p>
+  <button id="retry">Try again</button>
+</div>
+<script>
+  const target = new URLSearchParams(location.search).get('url');
+  const go = () => { if (/^https:\/\/([a-z0-9-]+\.)*ai-architectures\.com\//.test(target || '')) location.href = target; else location.href = 'https://plans.ai-architectures.com/'; };
+  document.getElementById('retry').onclick = go;
+  addEventListener('online', go);
+</script>
+</body>
+</html>
