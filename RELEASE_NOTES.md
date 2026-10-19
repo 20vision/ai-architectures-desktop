@@ -1,5 +1,7 @@
 AI Architectures for desktop: the CAD studio and quick renders in their own window. The app always runs the latest version of the sites, so it never needs updating for new features.
 
+**1.0.2:** The Mac app is signed by 20Vision GmbH and notarized by Apple, so it opens with a double-click (no "unidentified developer" warning).
+
 **1.0.1:** “Sign in with Google” now works: it opens your browser, you sign in there, and the app is signed in.
 
 **Download**

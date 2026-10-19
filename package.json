@@ -1,7 +1,7 @@
 {
   "name": "ai-architectures-desktop",
   "productName": "AI Architectures",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "AI Architectures for desktop: the CAD studio (plans.ai-architectures.com) and quick renders (ai-architectures.com) in their own window.",
   "author": {
     "name": "20Vision GmbH",
@@ -59,12 +59,15 @@
           ]
         }
       ],
-      "identity": "-",
-      "hardenedRuntime": false,
-      "gatekeeperAssess": false
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "notarize": true
     },
     "dmg": {
-      "title": "AI Architectures"
+      "title": "AI Architectures",
+      "sign": true
     },
     "win": {
       "target": [
