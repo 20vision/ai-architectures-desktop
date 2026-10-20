@@ -3,7 +3,7 @@
 //   Quick render  https://ai-architectures.com          (photo or sketch in, photoreal render out)
 // The apps update themselves (they are the live sites); this shell only adds the window, a menu to switch
 // modes, downloads to disk and links to the system browser. First start asks which mode; the choice is kept.
-const { app, BrowserWindow, Menu, shell, session, dialog, nativeTheme } = require('electron');
+const { app, BrowserWindow, Menu, shell, session, dialog, nativeTheme, screen } = require('electron');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const http = require('node:http');
@@ -50,12 +50,36 @@ async function load(mode) {
 
 const modeOfUrl = (url) => { const h = hostOf(url); return /^(www\.)?ai-architectures\.com$/.test(h) ? 'render' : h === 'plans.ai-architectures.com' ? 'cad' : null; };
 
+// The saved window place, only if it is still fully reachable: on a screen that is still connected, title bar
+// on screen, not larger than that screen. Otherwise a size that fits the primary screen, centred. (A window
+// restored partly off screen, or larger than a smaller screen, hid its title bar and with it the close button.)
+function windowBounds(saved) {
+  const fit = (area, w, h) => ({ width: Math.min(w, area.width), height: Math.min(h, area.height) });
+  if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y) && saved.width > 0 && saved.height > 0) {
+    const d = screen.getDisplayMatching(saved);
+    const a = d.workArea;
+    const size = fit(a, saved.width, saved.height);
+    const titleOnScreen = saved.y >= a.y && saved.y + 40 <= a.y + a.height && saved.x + 120 >= a.x && saved.x + size.width - 120 <= a.x + a.width;
+    if (titleOnScreen) {
+      return { ...size, x: Math.min(Math.max(saved.x, a.x), a.x + a.width - size.width), y: Math.min(Math.max(saved.y, a.y), a.y + a.height - size.height) };
+    }
+  }
+  const a = screen.getPrimaryDisplay().workArea;
+  const size = fit(a, Math.round(Math.min(1440, a.width * 0.92)), Math.round(Math.min(900, a.height * 0.92)));
+  return { ...size, x: a.x + Math.round((a.width - size.width) / 2), y: a.y + Math.round((a.height - size.height) / 2) };
+}
+
 function createWindow() {
   const st = readState();
+  const area = screen.getPrimaryDisplay().workArea;
   win = new BrowserWindow({
-    width: st.bounds?.width || 1440, height: st.bounds?.height || 900, x: st.bounds?.x, y: st.bounds?.y,
-    minWidth: 900, minHeight: 600, title: 'AI Architectures', backgroundColor: '#0f141b', show: false,
+    ...windowBounds(st.bounds),
+    minWidth: Math.min(900, area.width), minHeight: Math.min(600, area.height),
+    title: 'AI Architectures', backgroundColor: '#0f141b', show: false,
     icon: path.join(__dirname, 'icon.png'),
+    // the system's own title bar and window buttons on every OS: close / minimise / maximise on Windows and
+    // Linux (GNOME on Wayland included, where Electron draws them), traffic lights on macOS
+    frame: true, closable: true, minimizable: true, maximizable: true, resizable: true, autoHideMenuBar: false,
     webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: true },
   });
   if (st.maximized) win.maximize();
@@ -65,6 +89,14 @@ function createWindow() {
 
   const wc = win.webContents;
   wc.setUserAgent(APP_UA);
+  // Quit / Close also while the CAD studio has the keyboard: its command line takes every key press and a page
+  // that handles a key (preventDefault) keeps it from the menu's accelerators on Windows and Linux
+  wc.on('before-input-event', (e, input) => {
+    if (process.platform === 'darwin' || input.type !== 'keyDown' || !input.control || input.alt || input.meta) return;
+    const k = input.key.toLowerCase();
+    if (k === 'q' && !input.shift) { e.preventDefault(); app.quit(); }
+    else if (k === 'w' && !input.shift) { e.preventDefault(); win?.close(); }
+  });
   wc.setWindowOpenHandler(({ url }) => {
     const h = hostOf(url);
     if (SIGNIN.test(h)) { browserSignIn(); return { action: 'deny' }; }
@@ -141,8 +173,22 @@ async function smokeTest() {
     const ck = await session.defaultSession.cookies.get({ name: 'aa_session' });
     out.signin.cookie = ck.length === 1 && decodeURIComponent(ck[0].value) === fake;
     await session.defaultSession.cookies.remove('https://ai-architectures.com/', 'aa_session');
-    const ok = out.start && ['cad', 'render'].every((m) => out[m].text > 50 && out[m].app && !out[m].electron && !out[m].chooser) && out.signin.browser === LOGIN_PAGE && out.signin.popups === 0 && out.signin.wrongState === 404 && out.signin.rightState === 200 && out.signin.cookie;
-    finish(ok ? 0 : 1);
+    // window controls: a real title bar (Windows / macOS: the frame is measurable; Linux CI runs Xvfb without a
+    // window manager, so there only the flags are checked), a Quit item with its shortcut
+    const b = win.getBounds(); const cb = win.getContentBounds();
+    const fileMenu = Menu.getApplicationMenu()?.items.find((i) => i.label === 'File')?.submenu?.items || [];
+    const appMenu = Menu.getApplicationMenu()?.items[0]?.submenu?.items || [];
+    const quit = [...fileMenu, ...appMenu].find((i) => i.role === 'quit');
+    out.window = { closable: win.isClosable(), minimizable: win.isMinimizable(), maximizable: win.isMaximizable(), titleBar: b.height - cb.height,
+      quit: quit ? (quit.accelerator || (process.platform === 'darwin' ? 'Cmd+Q (default)' : '')) : null };
+    const winOk = out.window.closable && out.window.minimizable && out.window.maximizable && out.window.quit && (process.platform === 'linux' || out.window.titleBar > 0);
+    const ok = winOk && out.start && ['cad', 'render'].every((m) => out[m].text > 50 && out[m].app && !out[m].electron && !out[m].chooser) && out.signin.browser === LOGIN_PAGE && out.signin.popups === 0 && out.signin.wrongState === 404 && out.signin.rightState === 200 && out.signin.cookie;
+    // closing the window ends the app on Windows and Linux (macOS keeps it in the dock, as usual)
+    if (process.platform === 'darwin') { out.closeQuits = 'n/a (macOS)'; finish(ok ? 0 : 1); return; }
+    out.closeQuits = false;
+    setTimeout(() => finish(1), 8000);
+    app.once('will-quit', (e) => { e.preventDefault(); out.closeQuits = true; finish(ok ? 0 : 1); });
+    win.close();
   } catch (e) { out.error = String(e?.message || e); finish(1); }
 }
 
@@ -158,7 +204,9 @@ function buildMenu(mode) {
       { type: 'separator' },
       { label: 'Open in browser', accelerator: 'CmdOrCtrl+Shift+O', click: () => { const u = win?.webContents.getURL(); if (u?.startsWith('http')) shell.openExternal(u); } },
       { type: 'separator' },
-      isMac ? { role: 'close' } : { role: 'quit' },
+      // macOS: Close (Cmd+W) here, Quit (Cmd+Q) in the app menu; Windows / Linux: Quit (Ctrl+Q) here, Close
+      // (Ctrl+W) in the Window menu, Alt+F4 and the title bar's close button from the system
+      isMac ? { role: 'close' } : { role: 'quit', label: 'Quit AI Architectures', accelerator: 'Ctrl+Q' },
     ] },
     { role: 'editMenu' },
     { label: 'View', submenu: [
