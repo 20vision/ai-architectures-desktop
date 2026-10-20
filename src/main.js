@@ -178,7 +178,9 @@ async function smokeTest() {
     const b = win.getBounds(); const cb = win.getContentBounds();
     const fileMenu = Menu.getApplicationMenu()?.items.find((i) => i.label === 'File')?.submenu?.items || [];
     const appMenu = Menu.getApplicationMenu()?.items[0]?.submenu?.items || [];
-    const quit = [...fileMenu, ...appMenu].find((i) => i.role === 'quit');
+    const appMenuRole = String(Menu.getApplicationMenu()?.items[0]?.role || '').toLowerCase();
+    const quit = [...fileMenu, ...appMenu].find((i) => String(i.role || '').toLowerCase() === 'quit')
+      || (process.platform === 'darwin' && appMenuRole === 'appmenu' ? { accelerator: 'Cmd+Q (app menu)' } : null);
     out.window = { closable: win.isClosable(), minimizable: win.isMinimizable(), maximizable: win.isMaximizable(), titleBar: b.height - cb.height,
       quit: quit ? (quit.accelerator || (process.platform === 'darwin' ? 'Cmd+Q (default)' : '')) : null };
     const winOk = out.window.closable && out.window.minimizable && out.window.maximizable && out.window.quit && (process.platform === 'linux' || out.window.titleBar > 0);
